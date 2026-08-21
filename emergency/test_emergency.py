@@ -1,22 +1,22 @@
+import time
+
 from emergency_handler import EmergencyHandler
 
 
-handler = EmergencyHandler()
+handler = EmergencyHandler(cooldown_seconds=3)
 
 
-test_gestures = [
-    "HELLO",
-    "HELP",
-    "WATER",
-    "STOP",
-    "YES"
-]
+print("First HELP:")
+print(handler.process("HELP"))
 
+print("\nImmediate HELP:")
+print(handler.process("HELP"))
 
-for gesture in test_gestures:
+print("\nWaiting 3 seconds...")
+time.sleep(3)
 
-    result = handler.process(gesture)
+print("\nHELP after cooldown:")
+print(handler.process("HELP"))
 
-    print(f"\nGesture: {gesture}")
-    print(f"Emergency: {result['emergency']}")
-    print(f"Message: {result['message']}")
+print("\nHELLO:")
+print(handler.process("HELLO"))
