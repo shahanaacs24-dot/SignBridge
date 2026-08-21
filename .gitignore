@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .env
 .vscode/
+
+
+# Local ML files
+models/hand_landmarker.task
+models/gesture_model.pkl
+gesture/gesture_data.csv
