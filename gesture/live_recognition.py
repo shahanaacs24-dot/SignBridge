@@ -114,6 +114,7 @@ while True:
         )
 
         emergency = result["emergency"]
+        triggered = result["triggered"]
         message = result["message"]
 
 
