@@ -3,12 +3,15 @@ import time
 import os
 import joblib
 
-from hand_detector import HandDetector
-from feature_extractor import extract_features
+from gesture.hand_detector import HandDetector
+from gesture.feature_extractor import extract_features
+from gesture.prediction_stabilizer import PredictionStabilizer
+
+from emergency.emergency_handler import EmergencyHandler
 
 
 # -----------------------------
-# Load trained model
+# Load model
 # -----------------------------
 
 MODEL_FILE = os.path.join(
@@ -24,10 +27,17 @@ print("Model loaded successfully!")
 
 
 # -----------------------------
-# Start hand detector
+# Initialize components
 # -----------------------------
 
 detector = HandDetector()
+
+stabilizer = PredictionStabilizer(
+    window_size=7,
+    required_count=5
+)
+
+emergency_handler = EmergencyHandler()
 
 camera = cv2.VideoCapture(0)
 
@@ -55,8 +65,13 @@ while True:
         timestamp_ms
     )
 
-    prediction = "No hand detected"
+    raw_prediction = None
+    confirmed_prediction = None
     confidence = 0.0
+
+    # -----------------------------
+    # Detect hand
+    # -----------------------------
 
     if results.hand_landmarks:
 
@@ -64,59 +79,117 @@ while True:
 
         features = extract_features(hand)
 
-        # Make prediction
-        prediction = model.predict(
+        # Raw model prediction
+        raw_prediction = model.predict(
             [features]
         )[0]
 
-        # Get confidence
         probabilities = model.predict_proba(
             [features]
         )[0]
 
         confidence = max(probabilities)
 
+        # Stabilize prediction
+        confirmed_prediction = stabilizer.update(
+            raw_prediction
+        )
+
+    else:
+
+        stabilizer.reset()
+
+
     # -----------------------------
-    # Display prediction
+    # Process confirmed gesture
+    # -----------------------------
+
+    emergency = False
+    message = ""
+
+    if confirmed_prediction:
+
+        result = emergency_handler.process(
+            confirmed_prediction
+        )
+
+        emergency = result["emergency"]
+        message = result["message"]
+
+
+    # -----------------------------
+    # Display
     # -----------------------------
 
     cv2.rectangle(
         frame,
         (10, 10),
-        (500, 100),
+        (550, 130),
         (0, 0, 0),
         -1
     )
 
-    cv2.putText(
-        frame,
-        f"Sign: {prediction}",
-        (25, 50),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0, 255, 0),
-        2
-    )
+    if confirmed_prediction:
 
-    cv2.putText(
-        frame,
-        f"Confidence: {confidence * 100:.1f}%",
-        (25, 85),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 255, 255),
-        2
-    )
+        cv2.putText(
+            frame,
+            f"Sign: {confirmed_prediction}",
+            (25, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2
+        )
+
+        cv2.putText(
+            frame,
+            f"Confidence: {confidence * 100:.1f}%",
+            (25, 85),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2
+        )
+
+        if emergency:
+
+            cv2.putText(
+                frame,
+                "!!! EMERGENCY !!!",
+                (25, 115),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2
+            )
+
+    else:
+
+        cv2.putText(
+            frame,
+            "Detecting...",
+            (25, 50),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2
+        )
+
 
     cv2.imshow(
         "SignBridge - Live Recognition",
         frame
     )
 
-    # Press Q to quit
+
+    # Q = quit
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
+
+# -----------------------------
+# Cleanup
+# -----------------------------
 
 camera.release()
 detector.detector.close()
